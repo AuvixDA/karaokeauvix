@@ -206,7 +206,6 @@
     window.onSearchInput = function(val) {
       clearTimeout(searchTimeout);
       const dropdown = document.getElementById("searchDropdown");
-      positionDropdown();
       if (val.length < 2) {
         dropdown.innerHTML = "";
         dropdown.style.display = "none";
@@ -214,7 +213,6 @@
       }
       dropdown.innerHTML = "<div class='dd-item dd-loading'>Поиск…</div>";
       dropdown.style.display = "block";
-      positionDropdown();
 
       searchTimeout = setTimeout(async () => {
         try {
@@ -222,31 +220,11 @@
           const r = await fetch(url);
           const data = await r.json();
           renderDropdown(data.results);
-          positionDropdown();
         } catch {
           dropdown.innerHTML = "<div class='dd-item dd-error'>Ошибка поиска. Введите вручную.</div>";
-          positionDropdown();
         }
       }, 400);
     };
-
-    // ---- Позиционирование dropdown строго над полем ввода ----
-    function positionDropdown() {
-      const input    = document.getElementById("songInput");
-      const dropdown = document.getElementById("searchDropdown");
-      if (!input || !dropdown) return;
-      const rect = input.getBoundingClientRect();
-      const maxAvailable = Math.max(120, rect.top - 12);
-      dropdown.style.maxHeight = Math.min(240, maxAvailable) + "px";
-      dropdown.style.left   = rect.left + "px";
-      dropdown.style.width  = rect.width + "px";
-      dropdown.style.bottom = (window.innerHeight - rect.top + 6) + "px";
-    }
-    window.addEventListener("resize", positionDropdown);
-    window.addEventListener("scroll", () => {
-      const dropdown = document.getElementById("searchDropdown");
-      if (dropdown && dropdown.style.display === "block") positionDropdown();
-    }, true);
 
     function renderDropdown(results) {
       const dropdown = document.getElementById("searchDropdown");
@@ -480,6 +458,7 @@
 
   /* ---- ORDER SCREEN ---- */
   .card {
+    position: relative; z-index: 1;
     background: var(--card); border-radius: var(--radius);
     padding: 20px; margin-bottom: 14px;
     border: 1px solid rgba(214,95,209,0.16);
@@ -527,14 +506,14 @@
   select:disabled, input:disabled { opacity: 0.6; cursor: not-allowed; }
 
   /* search */
-  .search-wrap { position: relative; }
+  .search-wrap { position: relative; z-index: 50; }
   #searchDropdown {
-    position: fixed; left: 0;
+    position: absolute; top: calc(100% + 6px); left: 0; right: 0;
     background: rgba(30,18,52,0.97); border: 1.5px solid rgba(214,95,209,0.25);
     border-radius: 12px; z-index: 1000; max-height: 240px;
     overflow-y: auto; display: none;
     backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-    box-shadow: 0 -8px 28px rgba(0,0,0,0.45);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.45);
   }
   .dd-item {
     padding: 10px 14px; cursor: pointer;
