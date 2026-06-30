@@ -2,7 +2,7 @@
   "name": "Karaoke Panel",
   "short_name": "Karaoke Panel",
   "description": "Заказ песен в Karaoke Panel",
-  "start_url": "/guest.html",
+  "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#0b0c14",
   "theme_color": "#0b0c14",
