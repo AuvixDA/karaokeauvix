@@ -328,7 +328,7 @@
           <button class="btn-up"     onclick="moveUp('${id}',${idx})"   title="Выше" ${idx===0?"disabled":""}>↑</button>
           <button class="btn-down"   onclick="moveDown('${id}',${idx},${waiting.length})" title="Ниже" ${idx===waiting.length-1?"disabled":""}>↓</button>
           <button class="btn-table"  onclick="openChangeTable('${id}')" title="Стол">📍</button>
-          <button class="btn-reject" onclick="rejectOrder('${id}')" title="Отклонить">✕</button>
+          <button class="btn-reject" onclick="openRejectModal('${id}')" title="Отклонить">✕</button>
         </div>
       </div>`;
     }).join("");
@@ -392,8 +392,27 @@
     else renderPlaying();
   };
 
-  window.rejectOrder = async function(id) {
-    await update(ref(db, `queue/${id}`), { status: "rejected" });
+  // ----------- ОТКЛОНЕНИЕ ЗАЯВКИ (с подтверждением и причиной) -----------
+  window.openRejectModal = function(id) {
+    document.getElementById("rejectOrderId").value     = id;
+    document.getElementById("rejectReasonInput").value = "";
+    document.getElementById("rejectModal").style.display = "flex";
+    setTimeout(() => document.getElementById("rejectReasonInput").focus(), 50);
+  };
+
+  window.closeRejectModal = function() {
+    document.getElementById("rejectModal").style.display = "none";
+  };
+
+  window.confirmReject = async function() {
+    const id     = document.getElementById("rejectOrderId").value;
+    const reason = document.getElementById("rejectReasonInput").value.trim();
+    if (!id) { closeRejectModal(); return; }
+    await update(ref(db, `queue/${id}`), {
+      status:       "rejected",
+      rejectReason: reason || null
+    });
+    closeRejectModal();
   };
 
   window.moveUp = async function(id, idx) {
@@ -882,6 +901,21 @@
     <div class="modal-row">
       <button class="btn-ghost" onclick="closeChangeTable()">Отмена</button>
       <button class="btn-primary" onclick="confirmChangeTable()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- МОДАЛ: ОТКЛОНИТЬ ЗАЯВКУ -->
+<div class="modal-overlay" id="rejectModal">
+  <div class="modal">
+    <h3>✕ Отклонить заявку?</h3>
+    <p>Гость увидит причину отказа в своём приложении. Если оставить поле пустым — гость увидит стандартный текст «Ваша заявка отклонена диджеем».</p>
+    <input type="hidden" id="rejectOrderId">
+    <input type="text" id="rejectReasonInput" placeholder="Причина (необязательно)" maxlength="100"
+      onkeydown="if(event.key==='Enter') confirmReject()">
+    <div class="modal-row">
+      <button class="btn-ghost" onclick="closeRejectModal()">Отмена</button>
+      <button class="btn-danger" onclick="confirmReject()">Отклонить</button>
     </div>
   </div>
 </div>
