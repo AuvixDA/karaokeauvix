@@ -537,6 +537,21 @@
       o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.4);
     };
   }
+  // ----------- ВИД: ТЕЛЕФОН / ПК -----------
+  window.setViewMode = function(mode) {
+    const isDesktop = mode === "desktop";
+    document.body.classList.toggle("desktop-view", isDesktop);
+    document.getElementById("btnViewMobile").classList.toggle("active", !isDesktop);
+    document.getElementById("btnViewDesktop").classList.toggle("active", isDesktop);
+    try { localStorage.setItem("djViewMode", mode); } catch (e) {}
+  };
+
+  (function initViewMode() {
+    let saved = null;
+    try { saved = localStorage.getItem("djViewMode"); } catch (e) {}
+    const mode = saved || (window.innerWidth >= 880 ? "desktop" : "mobile");
+    window.setViewMode(mode);
+  })();
 </script>
 
 <style>
@@ -843,38 +858,119 @@
   }
   @keyframes ripple-anim { to { transform: scale(2.6); opacity: 0; } }
 
-  /* ---------------- DESKTOP ---------------- */
-  @media (min-width: 880px) {
-    :root { --maxw: 1180px; }
+  /* ---------------- VIEW TOGGLE BUTTON ---------------- */
+  .view-toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 999;
+    display: flex; align-items: center; gap: 2px;
+    background: rgba(20,16,34,0.85);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 999px; padding: 4px;
+  }
+  .view-toggle button {
+    border: none; background: transparent; color: var(--muted);
+    width: 34px; height: 34px; border-radius: 999px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .view-toggle button svg { width: 17px; height: 17px; }
+  .view-toggle button.active { background: var(--grad); color: #fff; }
 
-    body { padding: 28px; }
+  /* ===================================================================
+     DESKTOP DASHBOARD — applied only when <body> has .desktop-view
+     This is a distinct layout, not a reflow of the phone markup.
+     =================================================================== */
+  body.desktop-view {
+    padding: 32px 32px 60px;
+  }
 
-    #screenDJ.active { display: grid; grid-template-columns: 320px 1fr; gap: 22px; align-items: start; }
+  body.desktop-view .app-shell { max-width: 1240px; }
 
-    .dj-header { grid-column: 1 / -1; padding: 4px 4px 8px; }
+  /* top bar: brand, live stats, close-session — all in one row */
+  body.desktop-view .dj-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 0 22px; gap: 24px; flex-wrap: wrap;
+  }
 
-    .now-section { padding: 0; grid-row: 2; }
-    .stats-bar { padding: 0 0 16px; grid-row: 1; grid-column: 1; }
+  /* stat chips become inline pills sitting next to the brand */
+  body.desktop-view .stats-bar {
+    padding: 0; gap: 10px; width: auto; flex: 0 0 auto;
+    order: 2; margin-left: auto;
+  }
+  body.desktop-view .stat-chip {
+    padding: 8px 18px; min-width: 84px; border-radius: 14px;
+  }
+  body.desktop-view .stat-num { font-size: 1.15rem; }
 
-    /* left column: stats + now playing stacked */
-    .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+  body.desktop-view .dj-header > .btn-danger { order: 3; }
 
-    .tabs-bar {
-      grid-column: 2; position: static; background: none; padding: 0 0 14px; margin-top: 0;
-      max-width: 420px;
-    }
-    .tab-pane { grid-column: 2; padding: 0; }
+  /* main 2-column dashboard body */
+  body.desktop-view .dj-main {
+    display: grid; grid-template-columns: 340px 1fr; gap: 26px; align-items: start;
+  }
 
-    .queue-card { padding: 14px 16px; }
-    .queue-card-top { width: auto; flex: 1; }
-    .queue-actions { width: auto; margin-top: 0; flex-wrap: nowrap; }
+  /* left column: sticky now-playing card */
+  body.desktop-view .now-section {
+    padding: 0; position: sticky; top: 32px;
+  }
+  body.desktop-view .now-card { padding: 32px 22px 28px; border-radius: 26px; }
+  body.desktop-view .now-ring { width: 92px; height: 92px; }
+  body.desktop-view .now-ring svg { width: 36px; height: 36px; }
+  body.desktop-view .now-song { font-size: 1.4rem; }
 
-    .table-group { display: inline-block; vertical-align: top; width: 47%; margin-right: 3%; }
+  /* right column: tabs + content */
+  body.desktop-view .dj-right { min-width: 0; }
 
-    .modal { max-width: 420px; }
+  body.desktop-view .tabs-bar {
+    position: static; background: none; padding: 0 0 18px; margin-top: 0;
+    max-width: 340px; gap: 8px;
+  }
+  body.desktop-view .tab-btn { padding: 12px 10px; }
+
+  body.desktop-view .tab-pane { padding: 0; }
+
+  /* queue becomes a responsive card grid, not a stacked list */
+  body.desktop-view #queueList {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px;
+  }
+  body.desktop-view .queue-card {
+    flex-direction: column; align-items: stretch; padding: 16px;
+  }
+  body.desktop-view .queue-card-top { width: 100%; }
+  body.desktop-view .queue-actions {
+    width: 100%; margin-top: 12px; justify-content: flex-start;
+    border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;
+  }
+  body.desktop-view #queueList .empty-state,
+  body.desktop-view #tablesList .empty-state { grid-column: 1 / -1; }
+
+  /* tables tab: side-by-side groups */
+  body.desktop-view #tablesList {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;
+  }
+  body.desktop-view .table-group { margin-bottom: 0; }
+
+  body.desktop-view .modal { max-width: 420px; }
+
+  body.desktop-view .login-card,
+  body.desktop-view #screenLogin .login-card,
+  body.desktop-view #screenSessionClosed .login-card { max-width: 400px; }
+
+  /* hide phone tab-bar styling artifacts not relevant on desktop */
+  @media (max-width: 879px) {
+    .view-toggle { top: 10px; right: 10px; }
   }
 </style>
 <body>
+
+<!-- ПЕРЕКЛЮЧАТЕЛЬ ВИДА: ТЕЛЕФОН / ПК -->
+<div class="view-toggle" id="viewToggle">
+  <button id="btnViewMobile" onclick="setViewMode('mobile')" title="Вид: телефон">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+  </button>
+  <button id="btnViewDesktop" onclick="setViewMode('desktop')" title="Вид: ПК">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+  </button>
+</div>
 
 <!-- LOGIN -->
 <div class="screen active" id="screenLogin">
@@ -918,7 +1014,7 @@
 
 <!-- DJ ПАНЕЛЬ -->
 <div class="screen" id="screenDJ">
-  <div class="app-shell-grid" style="display:contents">
+  <div class="app-shell">
   <div class="dj-header">
     <div class="dj-header-left">
       <svg class="logo-sm" viewBox="0 0 38 38" xmlns="http://www.w3.org/2000/svg">
@@ -936,65 +1032,70 @@
         <div class="dj-brand-sub"><span class="live-dot"></span>вечер открыт</div>
       </div>
     </div>
+
+    <div class="stats-bar">
+      <div class="stat-chip">
+        <div class="stat-num" id="statQueue">0</div>
+        <div class="stat-label">В очереди</div>
+      </div>
+      <div class="stat-chip">
+        <div class="stat-num" id="statDone">0</div>
+        <div class="stat-label">Сыграно</div>
+      </div>
+      <div class="stat-chip">
+        <div class="stat-num" id="statTables">0</div>
+        <div class="stat-label">Столов</div>
+      </div>
+    </div>
+
     <button class="btn-danger" onclick="closeSession()">Закрыть вечер</button>
   </div>
 
-  <div class="stats-bar">
-    <div class="stat-chip">
-      <div class="stat-num" id="statQueue">0</div>
-      <div class="stat-label">В очереди</div>
-    </div>
-    <div class="stat-chip">
-      <div class="stat-num" id="statDone">0</div>
-      <div class="stat-label">Сыграно</div>
-    </div>
-    <div class="stat-chip">
-      <div class="stat-num" id="statTables">0</div>
-      <div class="stat-label">Столов</div>
-    </div>
-  </div>
-
-  <div class="now-section">
-    <div class="section-title">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polygon points="6 4 20 12 6 20"/></svg>
-      Сейчас играет
-    </div>
-    <div id="nowPlaying">
-      <div class="now-card empty">
-        <div class="now-ring">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
-            <path d="M19 11a7 7 0 0 1-14 0"/>
-            <line x1="12" y1="18" x2="12" y2="22"/>
-            <line x1="9" y1="22" x2="15" y2="22"/>
-          </svg>
+  <div class="dj-main">
+    <div class="now-section">
+      <div class="section-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polygon points="6 4 20 12 6 20"/></svg>
+        Сейчас играет
+      </div>
+      <div id="nowPlaying">
+        <div class="now-card empty">
+          <div class="now-ring">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
+              <path d="M19 11a7 7 0 0 1-14 0"/>
+              <line x1="12" y1="18" x2="12" y2="22"/>
+              <line x1="9" y1="22" x2="15" y2="22"/>
+            </svg>
+          </div>
+          <div class="now-song">Ничего не играет</div>
+          <div class="now-meta">Запустите первую песню из очереди</div>
         </div>
-        <div class="now-song">Ничего не играет</div>
-        <div class="now-meta">Запустите первую песню из очереди</div>
       </div>
     </div>
-  </div>
 
-  <div class="tabs-bar">
-    <button class="tab-btn active" data-tab="queue" onclick="showTab('queue')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>
-      Очередь<span class="count-badge" id="queueCount">0</span>
-    </button>
-    <button class="tab-btn" data-tab="tables" onclick="showTab('tables')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
-      По столикам
-    </button>
-  </div>
+    <div class="dj-right">
+      <div class="tabs-bar">
+        <button class="tab-btn active" data-tab="queue" onclick="showTab('queue')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>
+          Очередь<span class="count-badge" id="queueCount">0</span>
+        </button>
+        <button class="tab-btn" data-tab="tables" onclick="showTab('tables')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+          По столикам
+        </button>
+      </div>
 
-  <div class="tab-pane active" id="tab-queue">
-    <div id="queueList">
-      <div class="empty-state">🎵 Заявок пока нет. Гости заказывают через QR-код.</div>
-    </div>
-  </div>
+      <div class="tab-pane active" id="tab-queue">
+        <div id="queueList">
+          <div class="empty-state">🎵 Заявок пока нет. Гости заказывают через QR-код.</div>
+        </div>
+      </div>
 
-  <div class="tab-pane" id="tab-tables">
-    <div id="tablesList">
-      <div class="empty-state">Данные появятся после первых заказов.</div>
+      <div class="tab-pane" id="tab-tables">
+        <div id="tablesList">
+          <div class="empty-state">Данные появятся после первых заказов.</div>
+        </div>
+      </div>
     </div>
   </div>
   </div>
