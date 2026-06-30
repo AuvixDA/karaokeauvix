@@ -26,54 +26,25 @@
   };
 
   // ============================================================
-  // ТАБЛИЦА ТОКЕНОВ
+  // ПРИВЯЗКА СТОЛА ПО QR-КОДУ — пока убрано (QR-коды ещё не созданы).
+  // Когда появятся новые зашифрованные токены, сюда вернётся чтение
+  // ?t=... из URL и подстановка номера стола.
   // ============================================================
-  const TABLE_TOKENS = {
-    "A6YaMz--MpU": 1,  "XFCrmaN3B6A": 2,  "SEg41sT70Ro": 3,
-    "JendfUv4VSg": 4,  "yFYqtT2YnLU": 5,  "G1R2_nDG_vE": 6,
-    "-h_eFNzLBjQ": 7,  "8GBHUneSzUM": 8,  "Gyw4rf40QHQ": 9,
-    "s_dqYCUnxBg": 10, "8khYW7DPE90": 11, "69thjejTiuQ": 12,
-    "Rapa4Q8DvXw": 13
-  };
 
-  const params      = new URLSearchParams(window.location.search);
-  const token       = params.get("t");
-  const tableFromURL = token
-    ? (TABLE_TOKENS[token] ? String(TABLE_TOKENS[token]) : "INVALID")
-    : null;
-
-  // ---- Неверный токен ----
-  if (tableFromURL === "INVALID") {
-    document.addEventListener("DOMContentLoaded", () => showScreen("screenInvalidToken"));
-    // Не инициализируем Firebase — выходим
-  } else {
-    // ---- Нормальная инициализация ----
-    let app, db;
-    try {
-      app = initializeApp(firebaseConfig);
-      db  = getDatabase(app);
-    } catch(e) {
-      document.addEventListener("DOMContentLoaded", () => showOffline());
-    }
+  // ---- Нормальная инициализация ----
+  let app, db;
+  try {
+    app = initializeApp(firebaseConfig);
+    db  = getDatabase(app);
+  } catch(e) {
+    document.addEventListener("DOMContentLoaded", () => showOffline());
+  }
 
     // Глобальное состояние очереди
     let globalQueue    = {};
     let globalPlaying  = null; // id текущей играющей
 
     window.addEventListener("DOMContentLoaded", () => {
-      const tableInput = document.getElementById("tableNum");
-
-      // Установка стола из QR
-      if (tableFromURL) {
-        tableInput.value    = tableFromURL;
-        tableInput.disabled = true;
-        tableInput.style.display = "none";
-        document.getElementById("tableFixed").style.display    = "block";
-        document.getElementById("tableFixedNum").textContent   = tableFromURL;
-      } else {
-        document.getElementById("tableFixed").style.display = "none";
-      }
-
       // ---- Слушаем статус вечера ----
       onValue(ref(db, "session/isOpen"), (snap) => {
         const isOpen = snap.val();
@@ -172,7 +143,10 @@
       widget.style.display = "block";
       if (order.status === "rejected") {
         widget.className = "status-widget status-rejected";
-        widget.innerHTML = `😞 Ваша заявка отклонена диджеем
+        const rejectMsg = order.rejectReason
+          ? `😞 Заявка отклонена: ${escapeHtml(order.rejectReason)}`
+          : `😞 Ваша заявка отклонена диджеем`;
+        widget.innerHTML = `${rejectMsg}
           <button class="btn-cancel-order" onclick="window.cancelOrder()">Заказать другую</button>`;
       } else if (order.status === "playing") {
         widget.className = "status-widget status-playing";
@@ -215,13 +189,23 @@
       dropdown.style.display = "block";
 
       searchTimeout = setTimeout(async () => {
+        const controller = new AbortController();
+        const timeoutId  = setTimeout(() => controller.abort(), 8000);
         try {
           const url = `https://itunes.apple.com/search?term=${encodeURIComponent(val)}&media=music&limit=8`;
-          const r = await fetch(url);
+          const r = await fetch(url, {
+            method: "GET",
+            mode:   "cors",
+            cache:  "no-store",
+            signal: controller.signal
+          });
+          if (!r.ok) throw new Error("bad status " + r.status);
           const data = await r.json();
           renderDropdown(data.results);
         } catch {
           dropdown.innerHTML = "<div class='dd-item dd-error'>Ошибка поиска. Введите вручную.</div>";
+        } finally {
+          clearTimeout(timeoutId);
         }
       }, 400);
     };
@@ -241,6 +225,15 @@
     }
 
     function esc(s) { return (s||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
+
+    function escapeHtml(s) {
+      return (s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
 
     window.selectTrack = function(track, artist) {
       document.getElementById("songInput").value = `${track} — ${artist}`;
@@ -324,7 +317,6 @@
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(() => {});
     }
-  }
 
   function showScreen(id) {
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
@@ -468,19 +460,6 @@
   }
 
   .table-row { display: flex; align-items: center; gap: 10px; }
-  .table-fixed-badge {
-    width: 100%;
-    background: rgba(214,95,209,0.1);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    border: 1.5px solid rgba(214,95,209,0.35);
-    border-radius: 14px; padding: 14px 18px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .table-fixed-label { color: var(--muted); font-size: 0.85rem; }
-  .table-fixed-num {
-    font-family: 'Unbounded', sans-serif; font-size: 2rem;
-    font-weight: 900; color: var(--accent);
-  }
 
   select, input[type="text"], input[type="number"] {
     width: 100%; background: rgba(255,255,255,0.04);
@@ -647,30 +626,12 @@
   <p>Проверьте интернет и обновите страницу.<br>Если проблема повторяется — обратитесь к официанту.</p>
 </div>
 
-<!-- ЭКРАН: неверный QR-токен -->
-<div class="screen info-screen" id="screenInvalidToken">
-  <svg class="logo-big" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="50" cy="50" r="46" fill="none" stroke="var(--accent2)" stroke-width="2" opacity="0.5"/>
-    <line x1="32" y1="32" x2="68" y2="68" stroke="var(--accent2)" stroke-width="5" stroke-linecap="round"/>
-    <line x1="68" y1="32" x2="32" y2="68" stroke="var(--accent2)" stroke-width="5" stroke-linecap="round"/>
-  </svg>
-  <h2>Неверный QR-код</h2>
-  <p>Этот QR-код недействителен или устарел.<br><br>
-  <strong style="color:var(--accent)">Обратитесь к официанту</strong> — он поможет со свежим кодом.</p>
-</div>
-
 <!-- ЭКРАН: заказ песни -->
 <div class="screen" id="screenOrder">
 
   <div class="card">
     <div class="card-label"><span class="step-num">1</span> Ваш стол</div>
     <div class="table-row">
-      <div id="tableFixed" style="display:none; width:100%;">
-        <div class="table-fixed-badge">
-          <span class="table-fixed-label">📍 Ваш стол</span>
-          <span class="table-fixed-num" id="tableFixedNum">—</span>
-        </div>
-      </div>
       <input type="number" id="tableNum" min="1" max="13" placeholder="Номер стола (1–13)">
     </div>
   </div>
