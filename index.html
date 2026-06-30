@@ -206,6 +206,7 @@
     window.onSearchInput = function(val) {
       clearTimeout(searchTimeout);
       const dropdown = document.getElementById("searchDropdown");
+      positionDropdown();
       if (val.length < 2) {
         dropdown.innerHTML = "";
         dropdown.style.display = "none";
@@ -213,6 +214,7 @@
       }
       dropdown.innerHTML = "<div class='dd-item dd-loading'>Поиск…</div>";
       dropdown.style.display = "block";
+      positionDropdown();
 
       searchTimeout = setTimeout(async () => {
         try {
@@ -220,11 +222,31 @@
           const r = await fetch(url);
           const data = await r.json();
           renderDropdown(data.results);
+          positionDropdown();
         } catch {
           dropdown.innerHTML = "<div class='dd-item dd-error'>Ошибка поиска. Введите вручную.</div>";
+          positionDropdown();
         }
       }, 400);
     };
+
+    // ---- Позиционирование dropdown строго над полем ввода ----
+    function positionDropdown() {
+      const input    = document.getElementById("songInput");
+      const dropdown = document.getElementById("searchDropdown");
+      if (!input || !dropdown) return;
+      const rect = input.getBoundingClientRect();
+      const maxAvailable = Math.max(120, rect.top - 12);
+      dropdown.style.maxHeight = Math.min(240, maxAvailable) + "px";
+      dropdown.style.left   = rect.left + "px";
+      dropdown.style.width  = rect.width + "px";
+      dropdown.style.bottom = (window.innerHeight - rect.top + 6) + "px";
+    }
+    window.addEventListener("resize", positionDropdown);
+    window.addEventListener("scroll", () => {
+      const dropdown = document.getElementById("searchDropdown");
+      if (dropdown && dropdown.style.display === "block") positionDropdown();
+    }, true);
 
     function renderDropdown(results) {
       const dropdown = document.getElementById("searchDropdown");
@@ -347,6 +369,16 @@
     btn.style.position = btn.style.position || "relative";
     btn.appendChild(ripple);
     setTimeout(() => ripple.remove(), 500);
+  });
+
+  // ---- Закрытие dropdown поиска по клику вне него ----
+  document.addEventListener("click", (e) => {
+    const dropdown = document.getElementById("searchDropdown");
+    const wrap = document.querySelector(".search-wrap");
+    if (!dropdown || !wrap) return;
+    if (dropdown.style.display === "block" && !wrap.contains(e.target)) {
+      dropdown.style.display = "none";
+    }
   });
 </script>
 
@@ -497,9 +529,9 @@
   /* search */
   .search-wrap { position: relative; }
   #searchDropdown {
-    position: absolute; bottom: calc(100% + 6px); left: 0; right: 0;
-    background: rgba(30,18,52,0.96); border: 1.5px solid rgba(214,95,209,0.25);
-    border-radius: 12px; z-index: 100; max-height: 240px;
+    position: fixed; left: 0; right: 0;
+    background: rgba(30,18,52,0.97); border: 1.5px solid rgba(214,95,209,0.25);
+    border-radius: 12px; z-index: 1000; max-height: 240px;
     overflow-y: auto; display: none;
     backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     box-shadow: 0 -8px 28px rgba(0,0,0,0.45);
