@@ -68,9 +68,19 @@
       else         showScreen("screenDJ");
     });
 
+    onValue(ref(db, "session/openedAt"), (snap) => {
+      sessionOpenedAt = snap.val() || null;
+      updateShiftTimer();
+    });
+    if (!shiftTimerInterval) {
+      shiftTimerInterval = setInterval(updateShiftTimer, 1000);
+    }
+
     onValue(ref(db, "session/currentlyPlaying"), (snap) => {
       currentlyPlaying = snap.val() || null;
+      trackStartedAt   = Date.now();
       renderPlaying();
+      renderNextUp();
     });
 
     onValue(ref(db, "queue"), (snap) => {
@@ -86,6 +96,34 @@
       renderAll();
       updateStats();
     });
+  }
+
+  // ----------- ТАЙМЕР СМЕНЫ -----------
+  let sessionOpenedAt    = null;
+  let shiftTimerInterval = null;
+  let trackStartedAt     = Date.now();
+
+  function fmtDuration(ms) {
+    if (ms < 0) ms = 0;
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = n => String(n).padStart(2, "0");
+    return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  }
+
+  function updateShiftTimer() {
+    const el = document.getElementById("shiftTimer");
+    if (el) {
+      el.textContent = sessionOpenedAt ? fmtDuration(Date.now() - sessionOpenedAt) : "—:—";
+    }
+    const trackEl = document.getElementById("trackTimer");
+    if (trackEl) {
+      trackEl.textContent = (currentlyPlaying && queue[currentlyPlaying])
+        ? fmtDuration(Date.now() - trackStartedAt)
+        : "";
+    }
   }
 
   // ----------- ОТКРЫТЬ ВЕЧЕР -----------
@@ -278,7 +316,47 @@
   };
 
   // ----------- RENDER -----------
-  function renderAll() { renderQueue(); renderTables(); renderPlaying(); }
+  function renderAll() { renderQueue(); renderTables(); renderPlaying(); renderTop(); renderNextUp(); }
+
+  // ----------- ТОП ВЕЧЕРА -----------
+  function renderTop() {
+    const container = document.getElementById("topList");
+    if (!container) return;
+
+    const counts = {};
+    Object.values(queue).forEach(o => {
+      if (o.status === "rejected") return;
+      counts[o.song] = (counts[o.song] || 0) + 1;
+    });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+    if (top.length === 0) {
+      container.innerHTML = `<div class="empty-state">🏆 Пока нет данных. Топ соберётся по ходу вечера.</div>`;
+      return;
+    }
+
+    const medals = ["🥇", "🥈", "🥉"];
+    container.innerHTML = top.map(([song, count], i) => `
+      <div class="top-row">
+        <div class="top-rank">${medals[i] || (i + 1)}</div>
+        <div class="top-song">${song}</div>
+        <div class="top-count">×${count}</div>
+      </div>`).join("");
+  }
+
+  // ----------- СЛЕДУЮЩИЙ ТРЕК -----------
+  function renderNextUp() {
+    const el = document.getElementById("nextUpLine");
+    if (!el) return;
+    const waiting = orderList.filter(id => queue[id]?.status === "waiting" && id !== currentlyPlaying);
+    if (waiting.length === 0) { el.style.display = "none"; return; }
+    const o = queue[waiting[0]];
+    const name = o.name && o.name !== "Гость" ? ` · ${o.name}` : "";
+    el.style.display = "flex";
+    el.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+      <span>Далее: <b>${o.song}</b> · Стол ${o.table}${name}</span>`;
+  }
 
   function renderPlaying() {
     const container = document.getElementById("nowPlaying");
@@ -311,11 +389,13 @@
         </div>
         <div class="now-song">${o.song}</div>
         <div class="now-meta">Стол ${o.table}${o.name && o.name!=="Гость" ? ' · ' + o.name : ''}</div>
+        <div class="now-track-timer" id="trackTimer"></div>
         <button class="btn-done" onclick="markDone('${currentlyPlaying}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 13 10 18 19 7"/></svg>
           Сыграна
         </button>
       </div>`;
+    updateShiftTimer();
   }
 
   function renderQueue() {
@@ -727,6 +807,45 @@
   }
   .btn-done:active { transform: scale(0.97); }
   .btn-done svg { width: 18px; height: 18px; }
+
+  /* shift timer (inline next to "вечер открыт") */
+  .shift-timer-inline {
+    display: inline-flex; align-items: center; gap: 4px; margin-left: 8px;
+    color: var(--accent); font-weight: 800;
+  }
+  .shift-timer-inline svg { width: 11px; height: 11px; }
+
+  /* track timer on now-card */
+  .now-track-timer {
+    font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 0.78rem;
+    color: var(--green); margin-bottom: 14px; margin-top: -10px;
+    letter-spacing: 0.04em;
+  }
+  .now-track-timer:empty { display: none; }
+
+  /* next-up line */
+  .next-up-line {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px;
+    padding: 10px 14px; border-radius: 14px;
+    background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.1);
+    color: var(--muted); font-size: 0.82rem; font-weight: 600;
+  }
+  .next-up-line svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--accent); }
+  .next-up-line b { color: var(--text); font-weight: 800; }
+
+  /* top of the evening */
+  .top-row {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card); border-radius: 14px; padding: 11px 14px;
+    margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.07);
+  }
+  .top-rank {
+    width: 28px; flex-shrink: 0; text-align: center;
+    font-family: 'Unbounded', sans-serif; font-weight: 800; font-size: 1rem; color: var(--accent);
+  }
+  .top-song { flex: 1; min-width: 0; font-weight: 700; font-size: 0.9rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top-count { flex-shrink: 0; color: var(--muted); font-size: 0.82rem; font-weight: 800; }
   .now-card.empty { background: var(--card); border: 1px dashed rgba(255,255,255,0.12); }
   .now-card.empty .now-ring { background: rgba(255,255,255,0.06); box-shadow: none; }
   .now-card.empty .now-ring svg path,
@@ -1032,7 +1151,13 @@
       </svg>
       <div>
         <div class="dj-brand">Karaoke Panel</div>
-        <div class="dj-brand-sub"><span class="live-dot"></span>вечер открыт</div>
+        <div class="dj-brand-sub">
+          <span class="live-dot"></span>вечер открыт
+          <span class="shift-timer-inline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+            <span id="shiftTimer">—:—</span>
+          </span>
+        </div>
       </div>
     </div>
     <button class="btn-danger" onclick="closeSession()">Закрыть вечер</button>
@@ -1072,6 +1197,7 @@
         <div class="now-meta">Запустите первую песню из очереди</div>
       </div>
     </div>
+    <div class="next-up-line" id="nextUpLine" style="display:none"></div>
   </div>
 
   <div class="dj-right">
@@ -1084,6 +1210,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
         По столикам
       </button>
+      <button class="tab-btn" data-tab="top" onclick="showTab('top')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M7 6H4a3 3 0 0 0 3 4"/><path d="M17 6h3a3 3 0 0 1-3 4"/></svg>
+        Топ
+      </button>
     </div>
 
     <div class="tab-pane active" id="tab-queue">
@@ -1095,6 +1225,12 @@
     <div class="tab-pane" id="tab-tables">
       <div id="tablesList">
         <div class="empty-state">Данные появятся после первых заказов.</div>
+      </div>
+    </div>
+
+    <div class="tab-pane" id="tab-top">
+      <div id="topList">
+        <div class="empty-state">🏆 Пока нет данных. Топ соберётся по ходу вечера.</div>
       </div>
     </div>
   </div>
